@@ -1,5 +1,9 @@
 streamlit
 numpy
-scipy
+jupyter
 matplotlib
+scipy
 seaborn
+optopsy
+pandas
+requests
