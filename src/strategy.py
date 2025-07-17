@@ -1,21 +1,50 @@
-from .data_loader import load_options_data
-from .analytics import portfolio_metric, generate_heatmap_grid, plot_heatmap, plot_pnl_curve
-import optopsy as op
+# src/strategy.py
 
+import numpy as np
+from src.black_scholes import black_scholes
 
-def backtest_example(csv_path, r, sigma):
-    df = load_options_data(csv_path)
-    stats = op.long_calls(df, moneyness=(0.99,1.01), days_to_expiry=(5,30))
-    return stats
+def generate_signals(df, r=0.0, sigma=0.2):
+    """
+    Generates long/short signals based on Black–Scholes mispricing:
+      - Long if market mid < model price
+      - Short if market mid > model price
 
+    Params:
+    - df: DataFrame with columns ['mid', 'strike', 'expiry', 'option_type', 'date']
+    - r: risk-free rate
+    - sigma: assumed volatility
 
-def analysis_example(portfolio, r, sigma):
-    # define ranges
-    S_range = (50,150)
-    sigma_range = (0.1,0.5)
-    # heatmap
-    X,Y,Z = generate_heatmap_grid(portfolio, r, sigma, S_range, sigma_range, 'PnL')
-    hm_fig = plot_heatmap(X,Y,Z,'PnL')
-    # pnl curve
-    pc_fig = plot_pnl_curve(portfolio, r, sigma, S_range)
-    return hm_fig, pc_fig
+    Returns:
+    - df with added 'bs_price' and 'signal' columns (invalid rows dropped)
+    """
+
+    # 1) Filter to valid numeric and maturities
+    df = df[
+        (df['mid'] > 0) &
+        (df['strike'] > 0) &
+        (df['expiry'] > df['date'])
+    ].copy()
+
+    # 2) Compute BS model price safely
+    def safe_bs(row):
+        try:
+            return black_scholes(
+                S=row['mid'],
+                K=row['strike'],
+                expiry=row['expiry'],
+                r=r,
+                sigma=sigma,
+                option_type=row['option_type']
+            )
+        except Exception:
+            return np.nan
+
+    df['bs_price'] = df.apply(safe_bs, axis=1)
+
+    # 3) Drop rows where BS failed
+    df = df.dropna(subset=['bs_price'])
+
+    # 4) Generate signals:  1 = long, -1 = short
+    df['signal'] = np.where(df['mid'] < df['bs_price'], 1, -1)
+
+    return df
