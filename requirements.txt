@@ -4,6 +4,6 @@ jupyter
 matplotlib
 scipy
 seaborn
-optopsy
 pandas
 requests
+yfinanace
