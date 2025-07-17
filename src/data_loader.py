@@ -1,25 +1,64 @@
-import pandas as pd
-import optopsy as op
-import requests
-import io
+# src/data_loader.py
 
-def load_options_data(symbol="SPY") -> pd.DataFrame:
+import pandas as pd
+import yfinance as yf
+from datetime import date
+
+def fetch_options(symbol: str) -> pd.DataFrame:
     """
-    Downloads a public SPY options sample CSV, converts to optopsy DataFrame.
-    """
-    url = "https://huggingface.co/datasets/Subh775/SPY_options_chain/resolve/main/spy_sample-1.csv"
-    r = requests.get(url)
-    r.raise_for_status()
-    raw = pd.read_csv(io.BytesIO(r.content), parse_dates=['date', 'expiry'])
+    Fetch the full current options chain for `symbol` using yfinance.
     
-    df = op.DataFrame(
-        raw,
-        datetime_col='date',
-        underlying_price_col='underlying_price',
-        option_symbol_col='contractSymbol',
-        strike_col='strike',
-        expiry_col='expiry',
-        bid_col='bid',
-        ask_col='ask'
-    )
-    return df
+    Returns a DataFrame with columns:
+      - date: today’s date (datetime.date)
+      - underlying_price: current spot price
+      - option_symbol: OPRA-style ticker
+      - option_type: 'call' or 'put'
+      - strike: strike price (float)
+      - expiry: expiration date (datetime.date)
+      - bid, ask, mid (floats)
+    """
+    tk = yf.Ticker(symbol)
+    
+    # Spot price (last close)
+    hist = tk.history(period="1d")
+    if hist.empty:
+        raise RuntimeError(f"No history found for {symbol}")
+    underlying_price = hist["Close"].iloc[-1]
+    today = date.today()
+    
+    all_options = []
+    for exp in tk.options:
+        # Convert expiry string once to a date
+        expiry_date = pd.to_datetime(exp).date()
+        
+        chain = tk.option_chain(exp)
+        for df_side, typ in [(chain.calls, "call"), (chain.puts, "put")]:
+            df = df_side.copy()
+            df["option_type"] = typ
+            df["expiry"] = expiry_date
+            df["date"] = today
+            df["underlying_price"] = underlying_price
+            # Calculate mid price
+            df["mid"] = (df["bid"] + df["ask"]) / 2
+            
+            # Keep only the relevant columns and rename contractSymbol
+            sub = df[
+                [
+                    "date",
+                    "underlying_price",
+                    "contractSymbol",
+                    "option_type",
+                    "strike",
+                    "expiry",
+                    "bid",
+                    "ask",
+                    "mid",
+                ]
+            ].rename(columns={"contractSymbol": "option_symbol"})
+            all_options.append(sub)
+    
+    if not all_options:
+        return pd.DataFrame()
+    
+    result = pd.concat(all_options, ignore_index=True, sort=False)
+    return result
