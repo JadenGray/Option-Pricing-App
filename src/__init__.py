@@ -1,14 +1,16 @@
-# Makes src a package and exposes core functionality for easy imports
-from .data_loader import load_options_data
-from .black_scholes import black_scholes_metric, implied_volatility
-from .analytics import (
-    portfolio_metric, generate_heatmap_grid,
-    plot_heatmap, plot_pnl_curve
-)
-from .strategy import backtest_example, analysis_example
+"""
+src package initialization: expose core functions for easy imports
+"""
+
+from .data_loader import fetch_options
+from .strategy import generate_signals
+from .analytics import compute_pnl
+from .black_scholes import black_scholes, implied_volatility
 
 __all__ = [
-    'load_options_data', 'black_scholes_metric', 'implied_volatility',
-    'portfolio_metric', 'generate_heatmap_grid', 'plot_heatmap',
-    'plot_pnl_curve', 'backtest_example', 'analysis_example'
+    "fetch_options",
+    "generate_signals",
+    "compute_pnl",
+    "black_scholes",
+    "implied_volatility",
 ]
