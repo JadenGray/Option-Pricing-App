@@ -1,61 +1,62 @@
 import math
 from scipy.stats import norm
-from datetime import datetime
 
-
-def _time_fraction(expiry, valuation_date=None):
+# taken from option app code
+def black_scholes(S, K, T, r, sigma, option_type, quantity):
     """
-    Compute year fraction between valuation_date and expiry.
+    Calculate the Black-Scholes price and greeks for a European call or put option.
     """
-    ref_date = valuation_date or datetime.utcnow()
-    T = (expiry - ref_date).days / 365
-    return max(T, 1e-6)
-
-
-def black_scholes(S, K, expiry, r, sigma, option_type, valuation_date=None):
-    """
-    Calculate the Black–Scholes European option price.
-
-    Parameters:
-    - S: underlying spot price
-    - K: strike price
-    - expiry: expiration (datetime.date)
-    - r: risk-free rate (annual)
-    - sigma: volatility (annual)
-    - option_type: 'call' or 'put'
-    - valuation_date: datetime for pricing (defaults to now)
-
-    Returns:
-    - option price (float)
-    """
-    T = _time_fraction(expiry, valuation_date)
     d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
     d2 = d1 - sigma * math.sqrt(T)
 
-    if option_type.lower() == 'call':
-        return S * norm.cdf(d1) - K * math.exp(-r * T) * norm.cdf(d2)
-    elif option_type.lower() == 'put':
-        return K * math.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+    if quantity == "Price":
+        # use black scholes formula
+        if option_type == "call":
+            return S * norm.cdf(d1) - K * math.exp(-r * T) * norm.cdf(d2)
+        elif option_type == "put":
+            return K * math.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+    # Greek formulae taken from https://www.quantpie.co.uk/bsm_formula/bs_summary.php
+    elif quantity == "Delta":
+        if option_type == "call":
+            return norm.cdf(d1)
+        elif option_type == "put":
+            return norm.cdf(d1) - 1
+    elif quantity == "Gamma":
+        return norm.pdf(d1) / (S * sigma * math.sqrt(T))
+    elif quantity == "Vega":
+        return S * norm.pdf(d1) * math.sqrt(T)
+    elif quantity == "Theta":
+        if option_type == "call":
+            return (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T))
+                    - r * K * math.exp(-r * T) * norm.cdf(d2))
+        elif option_type == "put":
+            return (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T))
+                    + r * K * math.exp(-r * T) * norm.cdf(-d2))
+    elif quantity == "Rho":
+        if option_type == "call":
+            return K * T * math.exp(-r * T) * norm.cdf(d2)
+        elif option_type == "put":
+            return -K * T * math.exp(-r * T) * norm.cdf(-d2)
     else:
-        raise ValueError("option_type must be 'call' or 'put'")
+        raise ValueError("Invalid Quantity. Choose from Price, Delta, Gamma, Vega, Theta, Rho.")
 
-
-def implied_volatility(S, K, expiry, r, option_price, option_type, tol=1e-5, max_iter=100):
+def implied_volatility(S, K, T, r, option_price, option_type, tol=1e-5, max_iter=100):
     """
-    Compute implied volatility (annual) via Newton-Raphson.
-
-    Returns volatility in percent.
+    Calculate the implied volatility for a European call or put option using the Newton-Raphson method.
+    Details on the method can be found at https://medium.com/hypervolatility/extracting-implied-volatility-newton-raphson-secant-and-bisection-approaches-fae83c779e56
+    Initial guess constructed on a logarithmic approximation: https://quant.stackexchange.com/questions/58634/newtons-algorithm-for-implied-volatility
     """
-    T = _time_fraction(expiry, None)
-    # Initial guess: Brenner-Subrahmanyam
-    sigma = math.sqrt(max(2 * abs(math.log(S / K)) / T, 1e-6))
-
+    # Initial guess for sigma
+    numerator = math.sqrt(2 * math.log((S * math.exp(r * T)) / K))
+    denominator = math.sqrt(T)
+    sigma = numerator / denominator if denominator > 0 else 0.2  # Fallback if T = 0
+    # Iterate the newton raphson formula
     for _ in range(max_iter):
-        price = black_scholes(S, K, expiry, r, sigma, option_type)
+        price = black_scholes(S, K, T, r, sigma, option_type, "Price")
         d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
         vega = S * norm.pdf(d1) * math.sqrt(T)
-        diff = price - option_price
-        if abs(diff) < tol:
+        price_diff = price - option_price
+        if abs(price_diff) < tol:
             return sigma * 100
-        sigma -= diff / vega
-    raise RuntimeError("Implied vol did not converge")
+        sigma -= price_diff / vega
+    raise ValueError("Implied volatility did not converge.")

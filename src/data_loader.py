@@ -4,7 +4,7 @@ import pandas as pd
 import yfinance as yf
 from datetime import date
 
-def fetch_options(symbol: str) -> pd.DataFrame:
+def fetch_daily_options(symbol: str) -> pd.DataFrame:
     """
     Fetch the full current options chain for `symbol` using yfinance.
     
@@ -62,3 +62,14 @@ def fetch_options(symbol: str) -> pd.DataFrame:
     
     result = pd.concat(all_options, ignore_index=True, sort=False)
     return result
+
+def load_minute_underlying(symbol: str, start: str, end: str, interval: str = '1m') -> pd.DataFrame:
+    """
+    Fetches minute-level underlying price for `symbol` between `start` and `end`.
+    Returns DataFrame with columns ['datetime', 'underlying_price'].
+    """
+    tk = yf.Ticker(symbol)
+    df = tk.history(start=start, end=end, interval=interval)
+    df = df.reset_index()[['Datetime', 'Close']].rename(
+        columns={'Datetime': 'datetime', 'Close': 'underlying_price'})
+    return df
