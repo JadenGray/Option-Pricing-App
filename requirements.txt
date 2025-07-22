@@ -1,9 +1,5 @@
 streamlit
 numpy
-jupyter
 matplotlib
 scipy
 seaborn
-pandas
-requests
-yfinanace

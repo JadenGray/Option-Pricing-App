@@ -1,2 +1,2 @@
 # Option Pricing App
- An app which uses the Black Scholes formula to calculate option prices and Greeks.
+A streamlit web app to calculate and visualise European options pricing and Greeks using Black Scholes. To access the app, visit 
