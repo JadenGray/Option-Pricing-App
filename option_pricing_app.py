@@ -91,30 +91,18 @@ def implied_volatility(S, K, T, r, option_price, option_type, tol=1e-5, max_iter
     raise ValueError("Implied volatility did not converge.")
 
 def portfolio_metrics(portfolio, rate, spot_price, volatility, metric="Price"):
-    """
-    Compute the portfolio-wide metric by summing individual option metrics.
-    
-    Parameters:
-    - portfolio: List of options, where each option is a dictionary.
-    - rate: Risk-free rate (r), applied globally to all options.
-    - spot_price: Current stock price (S), applied globally to all options.
-    - volatility: Volatility (σ), applied globally to all options.
-    - metric: The desired metric to compute (default is "Price").
-    
-    Returns:
-    - total_metric: The total portfolio metric value.
-    """
+    # add all the option metrics together
     total_metric = 0
     # iterate through each option in the portfolio
     for option in portfolio:
         metric_value = black_scholes(
-            spot_price,                # Spot price (S)
-            option["strike"],          # Strike price (K)
-            option["time_to_maturity"],# Time to maturity (T)
-            rate,                      # Risk-free rate (r)
-            volatility,                # Volatility (σ)
-            option["type"],            # Option type ("call" or "put")
-            metric                     # Metric to compute (e.g., "Price")
+            spot_price,              
+            option["strike"],       
+            option["time_to_maturity"],
+            rate,                     
+            volatility,               
+            option["type"],            
+            metric                    
         )
         # add the values
         total_metric += option["quantity"] * metric_value
@@ -133,7 +121,7 @@ st.sidebar.header("Navigation")
 st.sidebar.button("Option Calculations", on_click=navigate_to, args=("Option Calculations",))
 st.sidebar.button("Heatmaps", on_click=navigate_to, args=("Heatmaps",))
 st.sidebar.button("Portfolio Analysis", on_click=navigate_to, args=("Portfolio Analysis",))
-st.sidebar.write("---")  # Divider line for better separation
+st.sidebar.write("---")
 
 # Make the Opiton Heatmap page and the sidebar
 def option_calculations():
@@ -157,27 +145,23 @@ def option_calculations():
             purchase_price = st.number_input("Purchase Price", min_value=0.01, value=10.0, step=0.1)
             
         implied_vol = implied_volatility(S, K, T, r, purchase_price, option_type)
+        # implied volatility boxes
         with st.container():
             st.markdown(f"<div class='green-box'> Implied Volatility: {implied_vol:.2f}% </div>", unsafe_allow_html=True)
     
     # additions otherwise
     else:
         with st.sidebar:
-            sigma = st.slider("Actual Volatility (σ)", min_value=0.0, max_value=1.0, value=0.2)
+            sigma = st.slider("Actual Volatility", min_value=0.0, max_value=1.0, value=0.2)
             
         call_quantity = black_scholes(S, K, T, r, sigma, "call", calc_type)
         put_quantity = black_scholes(S, K, T, r, sigma, "put", calc_type)
 
         col1, col2 = st.columns(2)
-        if calc_type == "Price":
-            with col1:
-                st.markdown(f"<div class='green-box'> CALL: ${call_quantity:.2f}</div>", unsafe_allow_html=True)
-            with col2:
-                st.markdown(f"<div class='red-box'> PUT: ${put_quantity:.2f}</div>", unsafe_allow_html=True)
-        else:
-            with col1:
+        # output boxes
+        with col1:
                 st.markdown(f"<div class='green-box'> CALL: {call_quantity:.2f}</div>", unsafe_allow_html=True)
-            with col2:
+        with col2:
                 st.markdown(f"<div class='red-box'> PUT: {put_quantity:.2f}</div>", unsafe_allow_html=True)
     
 
@@ -194,7 +178,7 @@ def heatmaps():
         if heatmap_quantity == "PnL":
             purchase_price = st.number_input("Purchase Price", min_value=0.01, value=10.0, step=0.1)
         else:
-            purchase_price = 10.0  # Set to None if not applicable
+            purchase_price = 10.0
         T = st.number_input("Time to Maturity (T, in years)", min_value=0.01, value=1.0, step=0.01)
         K = st.number_input("Strike Price (K)", min_value=0.01, value=100.0, step=1.0)
         r = st.slider("Risk-Free Rate (r)", min_value=0.0, max_value=1.0, value=0.05)
@@ -204,10 +188,11 @@ def heatmaps():
         spot_max = st.number_input("Max Spot Price (S)", min_value=spot_min + 0.01, value=150.0, step=1.0)
         if spot_max <= spot_min:
             st.error("Max Spot Price must be greater than Min Spot Price.")
-            spot_max = spot_min + 1  # Auto-correct to avoid breaking
+            spot_max = spot_min + 1  # Auto-correct to avoid breaking - streamlit bug fix
 
         # Volatility range
         vol_min = st.slider("Min Volatility (σ)", min_value=0.01, max_value=0.99, value=0.01, step=0.01)
+        # edge case
         if vol_min == 0.99:
             vol_max = 1.0
         else:
@@ -223,7 +208,7 @@ def heatmaps():
     # X and Y values
     X, Y = np.meshgrid(spot_prices, volatilities)
 
-    # Initialize an empty grid for the chosen metric
+    # Empty grid
     metric_values = np.zeros_like(X)
 
     # Loop through the grid
@@ -242,7 +227,7 @@ def heatmaps():
     # Display Heatmap
     fig, ax = plt.subplots(figsize=(8, 6))
 
-    # Adjust colormap and normalization based on the metric
+    # Colours - pnl should be red and green centred at 0
     if heatmap_quantity == "PnL":
         # make the colour gradient centered at 0
         color_norm = TwoSlopeNorm(vmin=min(-0.01, np.min(metric_values)), vcenter=0, vmax=max(0.01, np.max(metric_values)))
